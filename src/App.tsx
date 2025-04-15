@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { Bookmark, BookmarkPlus, Edit2, Folder, FolderPlus, Search, Tag, X, Image, Download } from 'lucide-react';
+import { Bookmark, BookmarkPlus, Edit2, Folder, FolderPlus, Search, Tag, X, Image, Download, LayoutGrid, Settings } from 'lucide-react';
 
 interface BookmarkItem {
   id: string;
@@ -15,6 +15,12 @@ interface BookmarkItem {
 interface Category {
   id: string;
   name: string;
+}
+
+// Add interface for display settings
+interface DisplaySettings {
+  cardSize: 'small' | 'medium' | 'large';
+  categoryLayout: 'grid' | 'flex';
 }
 
 function App() {
@@ -42,6 +48,16 @@ function App() {
   const [newCategory, setNewCategory] = useState('');
   const [isLoadingImage, setIsLoadingImage] = useState(false);
 
+  // Add display settings state
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>({
+    cardSize: 'large',
+    categoryLayout: 'grid'
+  });
+  const [isDisplayMenuOpen, setIsDisplayMenuOpen] = useState(false);
+
+  // Add new state for tag input
+  const [currentTag, setCurrentTag] = useState<string>('');
+
   useEffect(() => {
     console.log("App mounted, loading data from storage");
     
@@ -53,7 +69,7 @@ function App() {
     
     // Function to load data from storage
     const loadFromStorage = () => {
-      chrome.storage.local.get(['bookmarks', 'categories'], (result) => {
+      chrome.storage.local.get(['bookmarks', 'categories', 'displaySettings'], (result) => {
         console.log("Retrieved from local storage:", result);
         
         if (result.bookmarks) {
@@ -65,6 +81,11 @@ function App() {
         
         if (result.categories) {
           setCategories(result.categories);
+        }
+
+        // Load display settings if available
+        if (result.displaySettings) {
+          setDisplaySettings(result.displaySettings);
         }
       });
     };
@@ -86,6 +107,18 @@ function App() {
       loadFromStorage();
     }
   }, []);
+
+  // Add function to save display settings
+  const saveDisplaySettings = (settings: DisplaySettings) => {
+    console.log("Saving display settings to storage", settings);
+    chrome.storage.local.set({ displaySettings: settings }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("Error saving display settings:", chrome.runtime.lastError);
+      } else {
+        setDisplaySettings(settings);
+      }
+    });
+  };
 
   const saveBookmarks = (updatedBookmarks: BookmarkItem[]) => {
     console.log("Saving", updatedBookmarks.length, "bookmarks to storage");
@@ -324,6 +357,76 @@ function App() {
     chrome.tabs.create({ url, active: true });
   };
 
+  // Helper function to get card size class
+  const getCardSizeClass = () => {
+    switch (displaySettings.cardSize) {
+      case 'small':
+        return 'w-32';
+      case 'medium':
+        return 'w-48';
+      case 'large':
+        return 'w-80';
+      default:
+        return 'w-80';
+    }
+  };
+
+  const getCardSizeHeight = () => {
+    switch (displaySettings.cardSize) {
+      case 'small':
+        return 'h-24';
+      case 'medium':
+        return 'h-36';
+      case 'large':
+        return 'h-60';
+      default:
+        return 'h-60';
+    }
+  }
+
+  const getCardImageSizeHeight = () => {
+    switch (displaySettings.cardSize) {
+      case 'small':
+        return 'h-18';
+      case 'medium':
+        return 'h-24';
+      case 'large':
+        return 'h-36';
+      default:
+        return 'h-36';
+    }
+  }
+  // Helper function to get grid class
+  const getCategoryLayoutClass = () => {
+    return displaySettings.categoryLayout === 'grid' 
+      ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+      : 'flex flex-wrap gap-6';
+  };
+
+  const addTagToBookmark = () => {
+    if (!currentTag.trim()) return;
+    
+    // Check if tag already exists
+    if (newBookmark.tags?.includes(currentTag.trim())) {
+      return;
+    }
+    
+    setNewBookmark({
+      ...newBookmark,
+      tags: [...(newBookmark.tags || []), currentTag.trim()]
+    });
+    
+    // Clear the input
+    setCurrentTag('');
+  };
+  
+  const removeTagFromBookmark = (tagToRemove: string) => {
+    setNewBookmark({
+      ...newBookmark,
+      tags: newBookmark.tags?.filter(tag => tag !== tagToRemove) || []
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[#141414] text-white p-8">
       <div className="max-w-7xl mx-auto">
@@ -342,6 +445,63 @@ function App() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+            </div>
+            {/* Add display settings button */}
+            <div className="relative">
+              <button
+                onClick={() => setIsDisplayMenuOpen(!isDisplayMenuOpen)}
+                className="bg-gray-800 hover:bg-gray-700 rounded-full p-2"
+                title="Display settings"
+              >
+                <Settings className="w-6 h-6" />
+              </button>
+              
+              {/* Display settings dropdown */}
+              {isDisplayMenuOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Card Size</h3>
+                      <div className="flex gap-2">
+                        {(['small', 'medium', 'large'] as const).map(size => (
+                          <button
+                            key={size}
+                            onClick={() => saveDisplaySettings({...displaySettings, cardSize: size})}
+                            className={`px-3 py-1 rounded-md text-sm ${
+                              displaySettings.cardSize === size ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
+                            }`}
+                          >
+                            {size.charAt(0).toUpperCase() + size.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">Category Layout</h3>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => saveDisplaySettings({...displaySettings, categoryLayout: 'grid'})}
+                          className={`px-3 py-1 rounded-md text-sm flex items-center gap-1 ${
+                            displaySettings.categoryLayout === 'grid' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
+                          }`}
+                        >
+                          <LayoutGrid className="w-4 h-4" />
+                          Grid
+                        </button>
+                        <button
+                          onClick={() => saveDisplaySettings({...displaySettings, categoryLayout: 'flex'})}
+                          className={`px-3 py-1 rounded-md text-sm flex items-center gap-1 ${
+                            displaySettings.categoryLayout === 'flex' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
+                          }`}
+                        >
+                          <Folder className="w-4 h-4" />
+                          Flex
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <button
               onClick={() => setIsAddingBookmark(true)}
@@ -405,7 +565,7 @@ function App() {
         </div>
 
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className={getCategoryLayoutClass()}>
             {categories.map(category => (
               <Droppable key={category.id} droppableId={category.id}>
                 {(provided) => (
@@ -431,7 +591,7 @@ function App() {
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className="bg-gray-800 rounded-lg overflow-hidden hover:scale-105 transition-transform cursor-pointer"
+                              className={`bg-gray-800 ${getCardSizeClass()} ${getCardSizeHeight()} rounded-lg overflow-hidden hover:scale-105 transition-transform cursor-pointer`}
                               onClick={(e) => {
                                 // Prevent opening link when clicking on edit/delete buttons
                                 if (!(e.target as HTMLElement).closest('button')) {
@@ -442,7 +602,7 @@ function App() {
                               <img
                                 src={bookmark.imageUrl}
                                 alt={bookmark.title}
-                                className="w-full h-32 object-cover"
+                                className={`${getCardImageSizeHeight()} ${getCardSizeClass()} object-cover`}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.src = `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=128`;
@@ -513,6 +673,7 @@ function App() {
                       tags: [],
                       categoryId: 'default'
                     });
+                    setCurrentTag('');
                   }}
                   className="text-gray-400 hover:text-red-600"
                 >
@@ -556,16 +717,82 @@ function App() {
                   value={newBookmark.description}
                   onChange={(e) => setNewBookmark({ ...newBookmark, description: e.target.value })}
                 />
-                <input
-                  type="text"
-                  placeholder="Tags (comma-separated)"
-                  className="w-full bg-gray-700 rounded p-2"
-                  value={newBookmark.tags?.join(', ')}
-                  onChange={(e) => setNewBookmark({
-                    ...newBookmark,
-                    tags: e.target.value.split(',').map(tag => tag.trim()).filter(Boolean)
-                  })}
-                />
+                
+                {/* Replace the old tag input with the new component */}
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Add a tag"
+                      className="flex-1 bg-gray-700 rounded p-2"
+                      value={currentTag}
+                      onChange={(e) => setCurrentTag(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addTagToBookmark();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={addTagToBookmark}
+                      className="bg-blue-600 hover:bg-blue-700 rounded px-3 py-2"
+                    >
+                      <Tag className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  {/* Existing tags dropdown */}
+                  {getAllTags().length > 0 && (
+                    <div className="mt-2">
+                      <label className="block text-sm text-gray-400 mb-1">Select existing tag:</label>
+                      <div className="flex flex-wrap gap-2">
+                        {getAllTags()
+                          .filter(tag => !newBookmark.tags?.includes(tag))
+                          .map(tag => (
+                            <button
+                              key={tag}
+                              onClick={() => {
+                                setNewBookmark({
+                                  ...newBookmark,
+                                  tags: [...(newBookmark.tags || []), tag]
+                                });
+                              }}
+                              className="bg-gray-700 hover:bg-gray-600 text-sm px-2 py-1 rounded-full flex items-center gap-1"
+                            >
+                              <Tag className="w-3 h-3" />
+                              {tag}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Display current tags */}
+                  {newBookmark.tags && newBookmark.tags.length > 0 && (
+                    <div className="mt-2">
+                      <label className="block text-sm text-gray-400 mb-1">Current tags:</label>
+                      <div className="flex flex-wrap gap-2">
+                        {newBookmark.tags.map((tag, i) => (
+                          <div
+                            key={i}
+                            className="bg-red-600 text-white text-sm px-2 py-1 rounded-full flex items-center gap-1"
+                          >
+                            <Tag className="w-3 h-3" />
+                            <span>{tag}</span>
+                            <button
+                              onClick={() => removeTagFromBookmark(tag)}
+                              className="ml-1 hover:bg-red-700 rounded-full p-1"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
                 <select
                   className="w-full bg-gray-700 rounded p-2"
                   value={newBookmark.categoryId}
