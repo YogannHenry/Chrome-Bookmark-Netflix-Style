@@ -20,7 +20,7 @@ interface Category {
 // Add interface for display settings
 interface DisplaySettings {
   cardSize: 'small' | 'medium' | 'large';
-  categoryLayout: 'grid' | 'flex';
+  categoryLayout: 'grid' | 'flex' | 'horizontal';
 }
 
 function App() {
@@ -398,9 +398,23 @@ function App() {
   }
   // Helper function to get grid class
   const getCategoryLayoutClass = () => {
-    return displaySettings.categoryLayout === 'grid' 
-      ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-      : 'flex flex-wrap gap-6';
+    switch(displaySettings.categoryLayout) {
+      case 'grid':
+        return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
+      case 'flex':
+        return 'flex flex-wrap gap-6';
+      case 'horizontal':
+        return 'flex flex-col gap-12'; // Vertical stack of categories
+      default:
+        return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
+    }
+  };
+  
+  // Helper function to get bookmark container class for horizontal layout
+  const getBookmarksContainerClass = () => {
+    return displaySettings.categoryLayout === 'horizontal'
+      ? 'flex overflow-x-auto pb-4 space-x-4 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900'
+      : 'space-y-4';
   };
 
   const addTagToBookmark = () => {
@@ -497,6 +511,19 @@ function App() {
                           <Folder className="w-4 h-4" />
                           Flex
                         </button>
+                        {/* Add new horizontal layout option */}
+                        <button
+                          onClick={() => saveDisplaySettings({...displaySettings, categoryLayout: 'horizontal'})}
+                          className={`px-3 py-1 rounded-md text-sm flex items-center gap-1 ${
+                            displaySettings.categoryLayout === 'horizontal' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'
+                          }`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                          </svg>
+                          Scroll
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -567,84 +594,93 @@ function App() {
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className={getCategoryLayoutClass()}>
             {categories.map(category => (
-              <Droppable key={category.id} droppableId={category.id}>
+              <Droppable 
+                key={category.id} 
+                droppableId={category.id}
+                direction={displaySettings.categoryLayout === 'horizontal' ? 'horizontal' : 'vertical'}
+              >
                 {(provided) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className="space-y-4"
-                  >
+                  <div className="space-y-4">
                     <h2 className="text-xl font-semibold flex items-center gap-2">
                       <Folder className="w-5 h-5" />
                       {category.name}
                     </h2>
-                    {filteredBookmarks
-                      .filter(bookmark => bookmark.categoryId === category.id)
-                      .map((bookmark, index) => (
-                        <Draggable
-                          key={bookmark.id}
-                          draggableId={bookmark.id}
-                          index={index}
-                        >
-                          {(provided) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              className={`bg-gray-800 ${getCardSizeClass()} ${getCardSizeHeight()} rounded-lg overflow-hidden hover:scale-105 transition-transform cursor-pointer`}
-                              onClick={(e) => {
-                                // Prevent opening link when clicking on edit/delete buttons
-                                if (!(e.target as HTMLElement).closest('button')) {
-                                  openBookmark(bookmark.url);
-                                }
-                              }}
-                            >
-                              <img
-                                src={bookmark.imageUrl}
-                                alt={bookmark.title}
-                                className={`${getCardImageSizeHeight()} ${getCardSizeClass()} object-cover`}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.src = `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=128`;
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={getBookmarksContainerClass()}
+                      style={displaySettings.categoryLayout === 'horizontal' ? { minHeight: '100px' } : {}}
+                    >
+                      {filteredBookmarks
+                        .filter(bookmark => bookmark.categoryId === category.id)
+                        .map((bookmark, index) => (
+                          <Draggable
+                            key={bookmark.id}
+                            draggableId={bookmark.id}
+                            index={index}
+                          >
+                            {(provided) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                className={`bg-gray-800 ${getCardSizeClass()} ${getCardSizeHeight()} rounded-lg overflow-hidden hover:scale-105 transition-transform cursor-pointer ${
+                                  displaySettings.categoryLayout === 'horizontal' ? 'flex-shrink-0' : ''
+                                }`}
+                                onClick={(e) => {
+                                  // Prevent opening link when clicking on edit/delete buttons
+                                  if (!(e.target as HTMLElement).closest('button')) {
+                                    openBookmark(bookmark.url);
+                                  }
                                 }}
-                              />
-                              <div className="p-4">
-                                <div className="flex items-start justify-between">
-                                  <h3 className="text-lg font-semibold hover:text-red-500">{bookmark.title}</h3>
-                                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                                    <button
-                                      onClick={() => editBookmark(bookmark)}
-                                      className="text-gray-400 hover:text-blue-500"
-                                    >
-                                      <Edit2 className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                      onClick={() => deleteBookmark(bookmark.id)}
-                                      className="text-gray-400 hover:text-red-600"
-                                    >
-                                      <X className="w-5 h-5" />
-                                    </button>
+                              >
+                                <img
+                                  src={bookmark.imageUrl}
+                                  alt={bookmark.title}
+                                  className={`${getCardImageSizeHeight()} ${getCardSizeClass()} object-cover`}
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=128`;
+                                  }}
+                                />
+                                <div className="p-4">
+                                  <div className="flex items-start justify-between">
+                                    <h3 className="text-lg font-semibold hover:text-red-500">{bookmark.title}</h3>
+                                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                      <button
+                                        onClick={() => editBookmark(bookmark)}
+                                        className="text-gray-400 hover:text-blue-500"
+                                      >
+                                        <Edit2 className="w-5 h-5" />
+                                      </button>
+                                      <button
+                                        onClick={() => deleteBookmark(bookmark.id)}
+                                        className="text-gray-400 hover:text-red-600"
+                                      >
+                                        <X className="w-5 h-5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <p className="text-gray-400 text-sm mt-2">{bookmark.description}</p>
+                                  <div className="flex flex-wrap gap-2 mt-3">
+                                    {bookmark.tags.map((tag, i) => (
+                                      <span
+                                        key={i}
+                                        className="bg-gray-700 text-xs px-2 py-1 rounded-full flex items-center gap-1"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Tag className="w-3 h-3" />
+                                        {tag}
+                                      </span>
+                                    ))}
                                   </div>
                                 </div>
-                                <p className="text-gray-400 text-sm mt-2">{bookmark.description}</p>
-                                <div className="flex flex-wrap gap-2 mt-3">
-                                  {bookmark.tags.map((tag, i) => (
-                                    <span
-                                      key={i}
-                                      className="bg-gray-700 text-xs px-2 py-1 rounded-full flex items-center gap-1"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <Tag className="w-3 h-3" />
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
                               </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                    {provided.placeholder}
+                            )}
+                          </Draggable>
+                        ))}
+                      {provided.placeholder}
+                    </div>
                   </div>
                 )}
               </Droppable>
