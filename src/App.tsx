@@ -441,6 +441,11 @@ function App() {
     });
   };
 
+  // Determine which categories to display based on selected category
+  const categoriesToDisplay = selectedCategory === 'all' 
+    ? categories 
+    : categories.filter(category => category.id === selectedCategory);
+
   return (
     <div className="min-h-screen bg-[#141414] text-white p-8">
       <div className="max-w-7xl mx-auto">
@@ -593,7 +598,7 @@ function App() {
 
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className={getCategoryLayoutClass()}>
-            {categories.map(category => (
+            {categoriesToDisplay.map(category => (
               <Droppable 
                 key={category.id} 
                 droppableId={category.id}
