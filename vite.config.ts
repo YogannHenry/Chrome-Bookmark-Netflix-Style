@@ -3,12 +3,12 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import { writeFileSync, mkdirSync, copyFileSync } from 'fs';
 
-// Custom plugin to copy manifest and icons
-const copyManifest = () => {
+// Custom plugin to copy manifest and extension files
+const copyExtensionFiles = () => {
   return {
-    name: 'copy-manifest',
+    name: 'copy-extension-files',
     writeBundle: () => {
-      // Ensure icons directory exists
+      // Ensure directories exist
       mkdirSync(resolve(__dirname, 'dist/icons'), { recursive: true });
       
       // Copy manifest.json
@@ -17,7 +17,19 @@ const copyManifest = () => {
         resolve(__dirname, 'dist/manifest.json')
       );
       
-      // Create placeholder icons (you'll want to replace these with real icons)
+      // Copy background script directly (no bundling)
+      copyFileSync(
+        resolve(__dirname, 'src/background.js'),
+        resolve(__dirname, 'dist/background.js')
+      );
+      
+      // Copy content script directly (no bundling)
+      copyFileSync(
+        resolve(__dirname, 'src/contentScript.js'),
+        resolve(__dirname, 'dist/contentScript.js')
+      );
+      
+      // Create placeholder icons
       const sizes = [16, 48, 128];
       sizes.forEach(size => {
         writeFileSync(
@@ -25,19 +37,24 @@ const copyManifest = () => {
           Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+P+/HgAFhAJ/wlseKgAAAABJRU5ErkJggg==', 'base64')
         );
       });
+      
+      console.log('Extension files copied successfully');
     }
   };
 };
 
 export default defineConfig({
-  plugins: [react(), copyManifest()],
+  plugins: [react(), copyExtensionFiles()],
   build: {
     outDir: 'dist',
     rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html')
+      },
       output: {
-        entryFileNames: `assets/[name].js`,
-        chunkFileNames: `assets/[name].js`,
-        assetFileNames: `assets/[name].[ext]`
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name].[ext]'
       }
     }
   },

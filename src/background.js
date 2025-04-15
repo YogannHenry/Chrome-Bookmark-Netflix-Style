@@ -1,3 +1,5 @@
+// Simple background script for Chrome extension
+console.log("Background script initialized");
 
 // Function to recursively extract bookmarks
 function extractBookmarks(bookmarkNodes, allBookmarks = []) {
@@ -13,14 +15,21 @@ function extractBookmarks(bookmarkNodes, allBookmarks = []) {
 }
 
 // Listen for messages from the popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  console.log("Background received message:", request);
+  
   if (request.action === "getBookmarks") {
-    chrome.bookmarks.getTree((bookmarkTreeNodes) => {
+    chrome.bookmarks.getTree(function(bookmarkTreeNodes) {
       const bookmarks = extractBookmarks(bookmarkTreeNodes);
-      sendResponse({ bookmarks: bookmarks });
+      console.log("Extracted bookmarks:", bookmarks.length);
+      sendResponse({ success: true, bookmarks: bookmarks });
     });
-    return true; // Required for asynchronous response
+    return true; // Keep the message channel open for async response
+  }
+  
+  if (request.action === "ping") {
+    console.log("Received ping");
+    sendResponse({ success: true, message: "Background script is active" });
+    return true;
   }
 });
-
-console.log("Bookmarks extension background script loaded");

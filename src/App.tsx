@@ -43,25 +43,75 @@ function App() {
   const [isLoadingImage, setIsLoadingImage] = useState(false);
 
   useEffect(() => {
-    // Load bookmarks and categories from Chrome storage
-    chrome.storage.sync.get(['bookmarks', 'categories'], (result) => {
-      if (result.bookmarks) {
-        setBookmarks(result.bookmarks);
-      }
-      if (result.categories) {
-        setCategories(result.categories);
-      }
-    });
+    console.log("App mounted, loading data from storage");
+    
+    // First try to check if extension API is available
+    if (typeof chrome === 'undefined' || !chrome.storage) {
+      console.error("Chrome storage API not available");
+      return;
+    }
+    
+    // Function to load data from storage
+    const loadFromStorage = () => {
+      chrome.storage.local.get(['bookmarks', 'categories'], (result) => {
+        console.log("Retrieved from local storage:", result);
+        
+        if (result.bookmarks) {
+          console.log("Setting", result.bookmarks.length, "bookmarks from local storage");
+          setBookmarks(result.bookmarks);
+        } else {
+          console.log("No bookmarks found in storage");
+        }
+        
+        if (result.categories) {
+          setCategories(result.categories);
+        }
+      });
+    };
+    
+    // Try to ping the background script to make sure it's active
+    try {
+      chrome.runtime.sendMessage({ action: "ping" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn("Background script ping failed:", chrome.runtime.lastError);
+        } else if (response && response.success) {
+          console.log("Background script responded to ping:", response.message);
+        }
+        
+        // Load data regardless of ping outcome
+        loadFromStorage();
+      });
+    } catch (error) {
+      console.error("Error pinging background script:", error);
+      loadFromStorage();
+    }
   }, []);
 
   const saveBookmarks = (updatedBookmarks: BookmarkItem[]) => {
-    chrome.storage.sync.set({ bookmarks: updatedBookmarks });
-    setBookmarks(updatedBookmarks);
+    console.log("Saving", updatedBookmarks.length, "bookmarks to storage");
+    
+    // Use local storage for more reliable saving (sync has size limits)
+    chrome.storage.local.set({ bookmarks: updatedBookmarks }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("Error saving bookmarks:", chrome.runtime.lastError);
+        alert(`Failed to save bookmarks: ${chrome.runtime.lastError.message}`);
+      } else {
+        console.log("Bookmarks saved successfully to local storage");
+        setBookmarks(updatedBookmarks);
+      }
+    });
   };
 
   const saveCategories = (updatedCategories: Category[]) => {
-    chrome.storage.sync.set({ categories: updatedCategories });
-    setCategories(updatedCategories);
+    console.log("Saving categories to storage");
+    chrome.storage.local.set({ categories: updatedCategories }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("Error saving categories:", chrome.runtime.lastError);
+        alert(`Failed to save categories: ${chrome.runtime.lastError.message}`);
+      } else {
+        setCategories(updatedCategories);
+      }
+    });
   };
 
   const handleDragEnd = (result: any) => {
@@ -149,6 +199,7 @@ function App() {
         : bookmark
     );
 
+    console.log("Updating bookmark:", editingBookmarkId);
     saveBookmarks(updatedBookmarks);
     setIsEditingBookmark(false);
     setEditingBookmarkId(null);
@@ -220,36 +271,55 @@ function App() {
     return matchesSearch && matchesCategory && matchesTags;
   });
 
-  // Add this function to import Chrome bookmarks
   const importChromeBookmarks = () => {
-    chrome.runtime.sendMessage({ action: "getBookmarks" }, (response) => {
-      if (response.bookmarks) {
-        const importedBookmarks: BookmarkItem[] = response.bookmarks.map((item: any) => ({
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          title: item.title,
-          url: item.url,
-          description: '',
-          imageUrl: `https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}&sz=128`,
-          tags: [],
-          categoryId: 'default'
-        }));
-
-        // Merge with existing bookmarks, avoiding duplicates by URL
-        const existingUrls = new Set(bookmarks.map(b => b.url));
-        const newBookmarks = [
-          ...bookmarks,
-          ...importedBookmarks.filter(b => !existingUrls.has(b.url))
-        ];
+    console.log("Importing Chrome bookmarks...");
+    
+    try {
+      chrome.runtime.sendMessage({ action: "getBookmarks" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("Error getting bookmarks:", chrome.runtime.lastError);
+          alert(`Error: ${chrome.runtime.lastError.message}`);
+          return;
+        }
         
-        saveBookmarks(newBookmarks);
-        alert(`Imported ${importedBookmarks.length} bookmarks!`);
-      } else {
-        alert('Failed to import bookmarks. Please check console for errors.');
-      }
-    });
+        if (response && response.bookmarks && response.bookmarks.length > 0) {
+          console.log("Received", response.bookmarks.length, "bookmarks from Chrome");
+          
+          // Convert Chrome bookmarks to app format
+          const newBookmarks = response.bookmarks.map((item: any, index: number) => ({
+            id: `imported-${Date.now()}-${index}`,
+            title: item.title || "Untitled",
+            url: item.url,
+            description: '',
+            imageUrl: `https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}&sz=128`,
+            tags: [],
+            categoryId: 'default'
+          }));
+          
+          // Filter out duplicates
+          const existingUrls = new Set(bookmarks.map(b => b.url));
+          const uniqueNewBookmarks = newBookmarks.filter(b => !existingUrls.has(b.url));
+          
+          console.log("Adding", uniqueNewBookmarks.length, "unique new bookmarks");
+          
+          if (uniqueNewBookmarks.length > 0) {
+            const updatedBookmarks = [...bookmarks, ...uniqueNewBookmarks];
+            saveBookmarks(updatedBookmarks);
+            alert(`Successfully imported ${uniqueNewBookmarks.length} bookmarks!`);
+          } else {
+            alert("No new bookmarks to import.");
+          }
+        } else {
+          console.error("No bookmarks received from Chrome or empty response", response);
+          alert("No bookmarks found to import.");
+        }
+      });
+    } catch (error) {
+      console.error("Exception during bookmark import:", error);
+      alert(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   };
 
-  // Add this function to open bookmark links in new tab
   const openBookmark = (url: string) => {
     chrome.tabs.create({ url, active: true });
   };
