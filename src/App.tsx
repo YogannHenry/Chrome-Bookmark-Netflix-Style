@@ -63,6 +63,12 @@ function App() {
   const bookmarkModalRef = React.useRef<HTMLDivElement>(null);
   const categoryModalRef = React.useRef<HTMLDivElement>(null);
 
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
+  const [isCategoryVisibilityMenuOpen, setIsCategoryVisibilityMenuOpen] = useState(false);
+  
+  // Add ref for visibility menu
+  const categoryVisibilityMenuRef = React.useRef<HTMLDivElement>(null);
+
   // Add effect to handle clicks outside menus and modals
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -98,6 +104,13 @@ function App() {
         setIsManagingCategories(false);
         setNewCategory('');
       }
+
+      // Handle category visibility menu
+      if (isCategoryVisibilityMenuOpen && 
+          categoryVisibilityMenuRef.current && 
+          !categoryVisibilityMenuRef.current.contains(event.target as Node)) {
+        setIsCategoryVisibilityMenuOpen(false);
+      }
     }
     
     // Add event listener
@@ -107,7 +120,7 @@ function App() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isDisplayMenuOpen, isAddingBookmark, isEditingBookmark, isManagingCategories]);
+  }, [isDisplayMenuOpen, isAddingBookmark, isEditingBookmark, isManagingCategories, isCategoryVisibilityMenuOpen]);
 
   useEffect(() => {
     console.log("App mounted, loading data from storage");
@@ -120,7 +133,7 @@ function App() {
     
     // Function to load data from storage
     const loadFromStorage = () => {
-      chrome.storage.local.get(['bookmarks', 'categories', 'displaySettings'], (result) => {
+      chrome.storage.local.get(['bookmarks', 'categories', 'displaySettings', 'hiddenCategories'], (result) => {
         console.log("Retrieved from local storage:", result);
         
         if (result.bookmarks) {
@@ -137,6 +150,10 @@ function App() {
         // Load display settings if available
         if (result.displaySettings) {
           setDisplaySettings(result.displaySettings);
+        }
+
+        if (result.hiddenCategories) {
+          setHiddenCategories(result.hiddenCategories);
         }
       });
     };
@@ -167,6 +184,17 @@ function App() {
         console.error("Error saving display settings:", chrome.runtime.lastError);
       } else {
         setDisplaySettings(settings);
+      }
+    });
+  };
+
+  const saveHiddenCategories = (categories: string[]) => {
+    console.log("Saving hidden categories to storage", categories);
+    chrome.storage.local.set({ hiddenCategories: categories }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("Error saving hidden categories:", chrome.runtime.lastError);
+      } else {
+        setHiddenCategories(categories);
       }
     });
   };
@@ -342,6 +370,14 @@ function App() {
     );
   };
 
+  const toggleCategoryVisibility = (categoryId: string) => {
+    const updatedHiddenCategories = hiddenCategories.includes(categoryId)
+      ? hiddenCategories.filter(id => id !== categoryId)
+      : [...hiddenCategories, categoryId];
+    
+    saveHiddenCategories(updatedHiddenCategories);
+  };
+
   const filteredBookmarks = bookmarks.filter(bookmark => {
     const matchesSearch = bookmark.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       bookmark.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -492,10 +528,10 @@ function App() {
     });
   };
 
-  // Determine which categories to display based on selected category
-  const categoriesToDisplay = selectedCategory === 'all' 
-    ? categories 
-    : categories.filter(category => category.id === selectedCategory);
+  // Determine which categories to display based on selected category and visibility settings
+  const categoriesToDisplay = categories
+    .filter(category => !hiddenCategories.includes(category.id))
+    .filter(category => selectedCategory === 'all' || category.id === selectedCategory);
 
   return (
     <div className="min-h-screen bg-[#141414] text-white p-8">
@@ -588,6 +624,46 @@ function App() {
                 </div>
               )}
             </div>
+
+            {/* Add category visibility menu button */}
+            <div className="relative">
+              <button
+                onClick={() => setIsCategoryVisibilityMenuOpen(!isCategoryVisibilityMenuOpen)}
+                className="bg-gray-800 hover:bg-gray-700 rounded-full p-2"
+                title="Toggle category visibility"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+              
+              {/* Category visibility dropdown */}
+              {isCategoryVisibilityMenuOpen && (
+                <div 
+                  ref={categoryVisibilityMenuRef}
+                  className="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                  <div className="p-4 space-y-2">
+                    <h3 className="text-sm font-medium mb-2">Show/Hide Categories</h3>
+                    {categories.map(category => (
+                      <div key={category.id} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id={`visibility-${category.id}`}
+                          checked={!hiddenCategories.includes(category.id)}
+                          onChange={() => toggleCategoryVisibility(category.id)}
+                          className="rounded text-red-600 focus:ring-red-500 h-4 w-4 mr-2"
+                        />
+                        <label htmlFor={`visibility-${category.id}`} className="text-sm">
+                          {category.name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <button
               onClick={() => setIsAddingBookmark(true)}
               className="bg-red-600 hover:bg-red-700 rounded-full p-2"
