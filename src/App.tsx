@@ -58,6 +58,57 @@ function App() {
   // Add new state for tag input
   const [currentTag, setCurrentTag] = useState<string>('');
 
+  // Add refs for all modals
+  const displayMenuRef = React.useRef<HTMLDivElement>(null);
+  const bookmarkModalRef = React.useRef<HTMLDivElement>(null);
+  const categoryModalRef = React.useRef<HTMLDivElement>(null);
+
+  // Add effect to handle clicks outside menus and modals
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      // Handle display settings menu
+      if (isDisplayMenuOpen && 
+          displayMenuRef.current && 
+          !displayMenuRef.current.contains(event.target as Node)) {
+        setIsDisplayMenuOpen(false);
+      }
+      
+      // Handle bookmark modal
+      if ((isAddingBookmark || isEditingBookmark) && 
+          bookmarkModalRef.current && 
+          !bookmarkModalRef.current.contains(event.target as Node)) {
+        setIsAddingBookmark(false);
+        setIsEditingBookmark(false);
+        setEditingBookmarkId(null);
+        setNewBookmark({
+          title: '',
+          url: '',
+          description: '',
+          imageUrl: '',
+          tags: [],
+          categoryId: 'default'
+        });
+        setCurrentTag('');
+      }
+      
+      // Handle category management modal
+      if (isManagingCategories && 
+          categoryModalRef.current && 
+          !categoryModalRef.current.contains(event.target as Node)) {
+        setIsManagingCategories(false);
+        setNewCategory('');
+      }
+    }
+    
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDisplayMenuOpen, isAddingBookmark, isEditingBookmark, isManagingCategories]);
+
   useEffect(() => {
     console.log("App mounted, loading data from storage");
     
@@ -477,7 +528,9 @@ function App() {
               
               {/* Display settings dropdown */}
               {isDisplayMenuOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                <div 
+                  ref={displayMenuRef}
+                  className="absolute right-0 mt-2 w-64 rounded-md shadow-lg bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
                   <div className="p-4 space-y-4">
                     <div>
                       <h3 className="text-sm font-medium mb-2">Card Size</h3>
@@ -696,7 +749,10 @@ function App() {
         {/* Add/Edit Bookmark Modal */}
         {(isAddingBookmark || isEditingBookmark) && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <div 
+              ref={bookmarkModalRef}
+              className="bg-gray-800 rounded-lg p-6 w-full max-w-md"
+            >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">
                   {isEditingBookmark ? 'Edit Bookmark' : 'Add New Bookmark'}
@@ -859,7 +915,10 @@ function App() {
         {/* Manage Categories Modal */}
         {isManagingCategories && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <div 
+              ref={categoryModalRef}
+              className="bg-gray-800 rounded-lg p-6 w-full max-w-md"
+            >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">Manage Categories</h2>
                 <button
