@@ -505,15 +505,6 @@ function App() {
     });
   };
 
-  // Add state for dropdown menu
-  const [isImportExportMenuOpen, setIsImportExportMenuOpen] = useState(false);
-  const importExportMenuRef = React.useRef<HTMLDivElement>(null);
-
-  // Handle import/export menu
-  if (isImportExportMenuOpen && importExportMenuRef.current && !importExportMenuRef.current.contains(event.target as Node)) {
-    setIsImportExportMenuOpen(false);
-  }
-
   const exportBookmarksAsJson = () => {
     const bookmarksJson = JSON.stringify(bookmarks, null, 2);
     const blob = new Blob([bookmarksJson], { type: "application/json" });
@@ -539,7 +530,7 @@ function App() {
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
             <Bookmark className="w-8 h-8 text-red-600" />
-            <h1 className="text-3xl font-bold">Netflix Bookmarks</h1>
+            <h1 className="text-3xl font-bold">Bingemark</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -625,12 +616,20 @@ function App() {
             <button onClick={() => setIsManagingCategories(true)} className="bg-red-600 hover:bg-red-700 rounded-full p-2" title="Manage categories">
               <FolderPlus className="w-6 h-6" />
             </button>
-            <button onClick={importChromeBookmarks} className="bg-red-600 hover:bg-red-700 rounded-full p-2" title="Import Chrome bookmarks">
-              <Download className="w-6 h-6" />
-            </button>
-            <button onClick={exportBookmarksAsJson} className="bg-sky-600 hover:bg-sky-700 rounded-full p-2" title="Import Chrome bookmarks">
-              <Download className="w-6 h-6" />
-            </button>
+
+            <div className="relative group">
+              <button onClick={importChromeBookmarks} className="bg-red-600 hover:bg-red-700 rounded-full p-2" title="Importer Chrome favoris">
+                <Download className="w-6 h-6" />
+              </button>
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1">Importer Chrome favoris</div>
+            </div>
+
+            <div className="relative group">
+              <button onClick={exportBookmarksAsJson} className="bg-sky-600 hover:bg-sky-700 rounded-full p-2" title="Import Chrome bookmarks">
+                <Download className="w-6 h-6" />
+              </button>
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded px-2 py-1">Exporter Json favoris</div>
+            </div>
           </div>
         </header>
 
